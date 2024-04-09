@@ -28,6 +28,8 @@ ghc-options:
 
 library:
   source-dirs: src
+  dependencies:
+    - optparse-applicative
 
 executables:
   MyPandoc-exe:
@@ -39,6 +41,7 @@ executables:
       - -with-rtsopts=-N
     dependencies:
       - MyPandoc
+      - optparse-applicative
 
 tests:
   MyPandoc-test:
