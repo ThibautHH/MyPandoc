@@ -26,6 +26,9 @@ source-repository head
 library
   exposed-modules:
       Conf
+      ConfUtils
+      Decode
+      Encode
       Lib
   other-modules:
       Paths_MyPandoc

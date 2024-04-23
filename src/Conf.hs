@@ -7,8 +7,8 @@
 
 {-# LANGUAGE ViewPatterns #-}
 
-module Conf (Conf(Conf, inputFile, outputFile,
-        inputFormat, outputFormat), confParser) where
+module Conf (Conf(Conf, inputFile, outputFile, inputFormat, outputFormat),
+    confParser, DocumentFormat(XML, JSON, Markdown)) where
 
 import Data.List (stripPrefix)
 import Options.Applicative
