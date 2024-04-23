@@ -5,13 +5,13 @@
 -- ConfUtils
 -}
 
-module ConfUtils (getFomat) where
+module ConfUtils (getFormat) where
 
 import Conf (Conf(..), DocumentFormat(..))
 
-getFomat :: Conf -> String -> Conf
-getFomat conf@(Conf{inputFormat=Just _}) _ = conf
-getFomat conf ('<':_) = conf {inputFormat = Just XML}
-getFomat conf ('{':_) = conf {inputFormat = Just JSON}
-getFomat conf ('-':_) = conf {inputFormat = Just Markdown}
-getFomat conf _ = conf
+getFormat :: Conf -> String -> Conf
+getFormat conf@(Conf{inputFormat=Just _}) _ = conf
+getFormat conf ('<':_) = conf {inputFormat = Just XML}
+getFormat conf ('{':_) = conf {inputFormat = Just JSON}
+getFormat conf ('-':_) = conf {inputFormat = Just Markdown}
+getFormat conf _ = conf
