@@ -7,7 +7,8 @@
 
 module Encode (encode) where
 
-import Conf (Conf(..))
+import Conf(Conf(..))
+import Lib(Document)
 
-encode :: Conf -> String -> String
-encode conf content = content
+encode :: Conf -> Document -> String
+encode _ _ = ""
