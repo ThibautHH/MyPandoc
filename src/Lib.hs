@@ -7,14 +7,14 @@
 
 module Lib (Document(..), Header(..), Body(..),
     Container(..),
-        Section(name, content),
-        List(items),
-        CodeBlock(language, blocks),
+        Section(..),
+        List(..),
+        CodeBlock(..),
     Paragraph(..),
     Element(..),
-        Text(text, bold, italic, code),
-        Link(display, url),
-        Image(alt, src)) where
+        Text(..),
+        Link(..),
+        Image(..)) where
 
 data Document = Document {
     header :: Header,
