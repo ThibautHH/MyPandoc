@@ -5,7 +5,7 @@
 -- Lib
 -}
 
-module Lib (Document(..), Header(..), Body(..),
+module Lib (getDocument, Document(..), Header(..), Body(..),
     Container(..),
         Section(name, content),
         List(items),
@@ -15,6 +15,8 @@ module Lib (Document(..), Header(..), Body(..),
         Text(text, bold, italic, code),
         Link(display, url),
         Image(alt, src)) where
+
+import Conf (Conf(..), DocumentFormat(..))
 
 data Document = Document {
     header :: Header,
@@ -71,3 +73,23 @@ data Image = Image {
     alt :: [Element],
     src :: String
 } deriving (Show)
+
+getTiltle :: String -> String
+getTiltle "" = ""
+getTiltle ('\n':xs) = ""
+getTiltle (x:xs) = x:getTiltle xs
+
+
+getHeader :: Conf -> String -> (Header, String)
+getHeader Conf{inputFormat=Just Markdown} str = (Header{title=getTiltle str, author=Nothing, date=Nothing}, str)
+getHeader Conf{inputFormat=_} str = (Header{}, str)
+
+
+getSections :: Conf -> (String, [Either Container Paragraph]) -> (String, [Either Container Paragraph])
+getSections _ _ = ("", [])
+
+getDocument :: Conf -> String -> Document
+getDocument conf fileContent =  Document{header=docHeader, body=Body{sections=docBody}}
+                        where
+                            (docHeader, fileBody) = getHeader conf fileContent
+                            docBody = []
