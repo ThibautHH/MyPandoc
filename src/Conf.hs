@@ -35,19 +35,17 @@ inputFileOption = long "input"
                     <> help "Input document"
                     <> metavar "INPUT"
 
-outputFileOption :: Mod OptionFields (Maybe a)
+outputFileOption :: Mod OptionFields a
 outputFileOption = long "output"
                     <> short 'o'
                     <> help "Output document"
                     <> metavar "OUTPUT"
-                    <> value Nothing
 
-inputFormatOption :: Mod OptionFields (Maybe a)
+inputFormatOption :: Mod OptionFields a
 inputFormatOption = long "input-format"
                     <> short 'e'
                     <> help "Input format"
                     <> metavar "INPUTFORMAT"
-                    <> value Nothing
 
 outputFormatOption :: Mod OptionFields a
 outputFormatOption = long "output-format"
@@ -58,6 +56,6 @@ outputFormatOption = long "output-format"
 confParser :: Parser Conf
 confParser = Conf
             <$> strOption inputFileOption
-            <*> option auto outputFileOption
-            <*> option auto inputFormatOption
+            <*> optional (strOption outputFileOption)
+            <*> optional (option auto inputFormatOption)
             <*> option auto outputFormatOption
