@@ -30,6 +30,7 @@ library
       Decode
       Encode
       Lib
+      Parsing
   other-modules:
       Paths_MyPandoc
   hs-source-dirs:
