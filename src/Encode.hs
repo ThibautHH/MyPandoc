@@ -27,11 +27,14 @@ import Lib(Document(..), Header(..), Body(..),
 
 insertAuthor :: Maybe String -> String
 insertAuthor Nothing = ""
-insertAuthor (Just author) = "\n    <author>" ++ author ++ "</author>"
+insertAuthor (Just author) =
+    "\n" ++ indent 2 ++ "<author>" ++ author ++ "</author>"
+
 
 insertDate :: Maybe String -> String
 insertDate Nothing = ""
-insertDate (Just date) = "\n    <date>" ++ date ++ "</date>"
+insertDate (Just date) =
+    "\n" ++ indent 2 ++ "<date>" ++ date ++ "</date>"
 
 appendMaybe :: Maybe [a] -> [a] -> [a]
 appendMaybe x a = a ++ fromMaybe [] x
@@ -58,8 +61,8 @@ addHeader JSON Header{title, author, date} iLvl =
         "\"\n" ++ indent iLvl ++ "},"
     ]
 addHeader XML Header{title, author, date} _ =
-    "<header title:\"" ++ title ++ "\">" ++
-    insertAuthor author ++ insertDate date ++ "\n</header>"
+    "    <header title=\"" ++ title ++ "\">" ++
+    insertAuthor author ++ insertDate date ++ "\n    </header>"
 
 
 addElement :: DocumentFormat -> Element -> Int -> String
@@ -91,8 +94,10 @@ addElement XML (TextElement elem) iLvl =
         i = if italic elem then "*" else ""
         c = if code elem then "`" else ""
     in b ++ i ++ c ++ (text elem) ++ c ++ i ++ b
-addElement XML (LinkElement link) iLvl = ""
-addElement XML (ImageElement image) iLvl = ""
+addElement XML (LinkElement link) iLvl =
+    "<link url=\"" ++ (url link) ++ "\">" ++ foldMap (addElement XML) (display link) 0 ++ "</link>"
+addElement XML (ImageElement image) iLvl =
+    "<image url=\"" ++ (src image) ++ "\">" ++ foldMap (addElement XML) (alt image) 0 ++ "</image>"
 
 
 addParagraph :: DocumentFormat -> Paragraph -> Int -> String
@@ -100,52 +105,70 @@ addParagraph Markdown Paragraph{elements} _ =
     "\n" ++ foldMap (addElement Markdown) elements 0
 addParagraph JSON Paragraph{elements} iLvl =
     indent (iLvl+1) ++ "[\n" ++ foldMap (addElement JSON) elements (iLvl+2) ++ "\n" ++ indent (iLvl+1) ++ "],"
-addParagraph XML Paragraph{elements} _ = ""
+addParagraph XML Paragraph{elements} iLvl =
+    indent (iLvl+1) ++ "<paragraph>" ++ foldMap (addElement XML) elements 0 ++ "</paragraph>"
 
 addListElement :: DocumentFormat -> Paragraph -> Int -> String
 addListElement Markdown Paragraph{elements} _ =
     "\n- " ++ foldMap (addElement Markdown) elements 0
 addListElement JSON Paragraph{elements} iLvl =
     "\n" ++ indent (iLvl+1) ++ "[\n" ++ foldMap (addElement JSON) elements (iLvl+2) ++ "\n" ++ indent (iLvl+1) ++ "],"
-addListElement XML Paragraph{elements} _ = ""
-
+addListElement XML Paragraph{elements} i =
+    "\n" ++ indent (i+1) ++ "<paragraph>" ++ foldMap (addElement XML) elements (i+2) ++ "</paragraph>"
 
 addList :: DocumentFormat -> Container -> Int -> String
 addList Markdown (ListContainer elem) _ =
     foldMap (addListElement Markdown) (items elem) 0
 addList JSON (ListContainer elem) i =
     "\n" ++ indent (i+1) ++ "{\n" ++ indent (i+2) ++ "\"list\": [" ++ init (foldMap (addListElement JSON) (items elem) (i+2)) ++ "\n" ++ indent (i+2) ++ "]\n" ++ indent (i+1) ++ "},"
-addList XML (ListContainer elem) _ = ""
+addList XML (ListContainer elem) i =
+    "\n" ++ indent (i+1) ++ "<list>" ++ foldMap (addListElement XML) (items elem) (i+1) ++ "\n" ++ indent (i+1) ++ "</list>"
 
 
 addSection :: DocumentFormat -> Container -> Int -> String
 addSection Markdown (SectionContainer elem) i | (name elem) /= "" =
-    "\n\n" ++ replicate i '#' ++ " " ++ (name elem) ++ foldMap (diffPC Markdown) (content elem) (i+1)
-                                              | otherwise = foldMap (diffPC Markdown) (content elem) (i+1)
+    "\n\n" ++ replicate i '#' ++ " " ++ (name elem) ++
+    foldMap (diffPC Markdown) (content elem) (i+1)
+                                              | otherwise =
+    foldMap (diffPC Markdown) (content elem) (i+1)
 addSection JSON (SectionContainer elem) i =
     "\n" ++
     indent (i+1) ++ "{\n" ++
     indent (i+2) ++ "\"section\": {\n" ++
     indent (i+3) ++ "\"title\": \"" ++ (name elem) ++ "\",\n" ++
-    indent (i+3) ++ "\"content\": [" ++ init (foldMap (diffPC JSON) (content elem) (i+3)) ++ "\n" ++
+    indent (i+3) ++ "\"content\": [" ++
+    init (foldMap (diffPC JSON) (content elem) (i+3)) ++ "\n" ++
     indent (i+3) ++ "]\n" ++
     indent (i+2) ++ "}\n" ++
     indent (i+1) ++ "}\n"
-addSection XML (SectionContainer elem) i = ""
+addSection XML (SectionContainer elem) i =
+    "\n" ++
+    indent (i+1) ++ "<section title=\"" ++ (name elem) ++ "\">" ++
+    foldMap (diffPC XML) (content elem) (i+1) ++ "\n" ++
+    indent (i+1) ++ "</section>"
 
 
 addCodeBlock :: DocumentFormat -> Container -> Int -> String
 addCodeBlock Markdown (CodeBlockContainer elem) iLvl =
     "\n\n```" ++ foldMap (addParagraph Markdown) (blocks elem) iLvl ++ "\n```"
 addCodeBlock JSON (CodeBlockContainer elem) iLvl =
-    "\n" ++ indent (iLvl+1) ++ "{\n" ++ indent (iLvl+2) ++ "\"codeblock\": [\n" ++ init (foldMap (addParagraph JSON) (blocks elem) (iLvl+2)) ++ "\n" ++ indent (iLvl+2) ++ "]" ++ "\n" ++ indent (iLvl+1) ++ "},"
-addCodeBlock XML (CodeBlockContainer elem) iLvl = ""
+    "\n" ++
+    indent (iLvl+1) ++ "{\n" ++
+    indent (iLvl+2) ++ "\"codeblock\": [\n" ++
+    init (foldMap (addParagraph JSON) (blocks elem) (iLvl+2)) ++ "\n" ++
+    indent (iLvl+2) ++ "]" ++ "\n" ++
+    indent (iLvl+1) ++ "},"
+addCodeBlock XML (CodeBlockContainer elem) iLvl =
+    "\n" ++
+    indent (iLvl+1) ++ "<codeblock>\n" ++
+    foldMap (addParagraph XML) (blocks elem) (iLvl+1) ++ "\n" ++
+    indent (iLvl+1) ++ "</codeblock>"
 
 
 addContainer :: DocumentFormat -> Container -> Int -> String
-addContainer form cont@(SectionContainer _) iLvl = addSection form cont iLvl
-addContainer form cont@(ListContainer _) iLvl = addList form cont iLvl
-addContainer form cont@(CodeBlockContainer _) iLvl = addCodeBlock form cont iLvl
+addContainer form cont@(SectionContainer _) i = addSection form cont i
+addContainer form cont@(ListContainer _) i = addList form cont i
+addContainer form cont@(CodeBlockContainer _) i = addCodeBlock form cont i
 
 
 diffPC :: DocumentFormat -> Either Container Paragraph -> Int -> String
@@ -156,8 +179,15 @@ diffPC form (Right paragraph) iLvl = "\n" ++ addParagraph form paragraph iLvl
 addBody :: DocumentFormat -> Body -> String
 addBody _ Body{sections=[]} = ""
 addBody Markdown Body{sections} = foldMap (diffPC Markdown) sections 1
-addBody JSON Body{sections} = "\n    \"body\": [" ++ init (foldMap (diffPC JSON) sections 1) ++ "\n    ]"
-addBody XML Body{sections} = foldMap (diffPC XML) sections 1
+addBody JSON Body{sections} =
+    "\n" ++
+    indent 1 ++ "\"body\": [" ++
+    init (foldMap (diffPC JSON) sections 1) ++ "\n" ++
+    indent 1 ++ "]"
+addBody XML Body{sections} =
+    "\n" ++
+    indent 1 ++ "<body>" ++ foldMap (diffPC XML) sections 1 ++ "\n" ++
+    indent 1 ++ "</body>"
 
 encode :: Conf -> Document -> String
 encode Conf{outputFormat=Markdown} doc = 
@@ -165,4 +195,6 @@ encode Conf{outputFormat=Markdown} doc =
 encode Conf{outputFormat=JSON} doc =
     "{\n" ++ addHeader JSON (header doc) 1 ++ addBody JSON (body doc) ++ "\n}"
 encode Conf{outputFormat=XML} doc =
-    "<Document>\n" ++ addHeader XML (header doc) 1 ++ addBody XML (body doc) ++ "\n</Document>"
+    "<document>\n" ++
+    addHeader XML (header doc) 1 ++ addBody XML (body doc) ++
+    "\n</document>"
