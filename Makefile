@@ -13,6 +13,9 @@ all:
 	@stack build
 	@ln -sf $(BUILD_DIR)/bin/MyPandoc-exe $(NAME)
 
+test:all
+	@stack test
+
 clean:
 	@stack clean
 
