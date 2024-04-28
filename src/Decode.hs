@@ -91,7 +91,7 @@ parseJsonSeparator conf = parseWhitespace conf *> optional (parseString ",") <* 
 
 parseStart :: Conf -> Parser String
 parseStart conf@(Conf{inputFormat=Just Markdown}) = parseString "---\n" <* parseWhitespace conf
-parseStart conf@(Conf{inputFormat=Just XML}) = parseString "<document>" *> parseWhitespace conf *> parseString "<header>" <* parseWhitespace conf
+parseStart conf@(Conf{inputFormat=Just XML}) = parseString "<document>" *> parseWhitespace conf *> parseString "<header" <* parseWhitespace conf
 parseStart conf@(Conf{inputFormat=Just JSON}) = parseString "{" *> parseWhitespace conf *> parseJsonField conf "header" <* parseString "{" <* parseWhitespace conf
 parseStart _ = Parser $ const Nothing
 
@@ -108,6 +108,8 @@ parseHeaderEnd conf@(Conf{inputFormat=Just JSON}) = parseString "}" <* parseWhit
 parseHeaderEnd _ = Parser $ const Nothing
 
 parseTitle :: Conf -> Parser String
+parseTitle conf@(Conf{inputFormat=Just XML}) = parseString "title" *> parseWhitespace conf *> parseString "=" *>
+    parseWhitespace conf *> parseString "\"" *> parseUntil "\"" <* parseWhitespace conf <* parseString ">" <* parseWhitespace conf
 parseTitle conf = parserHeaderField conf "title"
 
 parseAuthor :: Conf -> Parser String
