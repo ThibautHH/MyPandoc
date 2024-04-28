@@ -6,90 +6,128 @@
 -}
 
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE DeriveFunctor #-}
 
 module Decode (decode) where
 
 import Control.Arrow(Arrow(first))
+import Control.Applicative((<|>), Alternative(empty), optional)
+import Control.Monad((>=>))
 import Data.List(stripPrefix)
 
 import Conf(Conf(..), DocumentFormat (..))
 import Lib(Document(Document), Header(Header), Body(Body),
+    Container(SectionContainer, ListContainer, CodeBlockContainer),
+        Section(Section),
+        List(List),
+        CodeBlock(CodeBlock),
     Paragraph (Paragraph),
     Element(LinkElement, ImageElement),
         Link(Link),
         Image(Image))
 
 data State = State {
+    rest :: String,
     bold :: Bool,
     italic :: Bool,
     code :: Bool,
     inLink :: Bool,
-    inImage :: Bool
+    inImage :: Bool,
+    sectionLevel :: Int
 } deriving (Show)
 
-data Parser a = Parser {
-    parse :: a,
-    state :: State,
-    rest :: String
-} deriving (Show, Functor)
+defaultState :: String -> State
+defaultState x = State x False False False False False 0
+
+type Result a = Maybe (a, State)
+
+newtype Parser a = Parser {
+    parse :: State -> Result a
+}
+
+instance Functor Parser where
+    fmap f (Parser p) = Parser (fmap (first f) . p)
+
+instance Applicative Parser where
+    pure x = Parser (\s -> Just (x, s))
+    Parser fp <*> Parser xp = Parser (fp >=> (\(f, s) -> xp s >>= (\(x, s') -> Just (f x, s'))))
+
+instance Alternative Parser where
+    empty = Parser (const Nothing)
+    Parser p1 <|> Parser p2 = Parser (\s -> p1 s <|> p2 s)
+
+instance Monad Parser where
+    Parser p >>= f = Parser (p >=> (\(x, s) -> parse (f x) s))
 
 splitOn :: Eq a => [a] -> [a] -> ([a], [a])
 splitOn needle (stripPrefix needle -> Just r) = ([], r)
 splitOn _ [] = ([], [])
 splitOn needle (x:xs) = first (x:) $ splitOn needle xs
 
-parseLink :: Conf -> Parser () -> Maybe (Parser Link)
-parseLink _ (Parser _ (State _ _ _ True _) _) = Nothing
-parseLink conf@(Conf{inputFormat=Just Markdown}) (elementsParser conf "[" "](" -> Just p) =
-    Just (Parser (Link (parse p) url) (state p) r)
-    where
-        (url, r) = splitOn ")" $ rest p
-parseLink _ _ = Nothing
+confWhitespace :: Conf -> String
+confWhitespace Conf{inputFormat=Just Markdown} = "\n\v\f"
+confWhitespace _ = " \t\n\f\v"
 
-parseImage :: Conf -> Parser () -> Maybe (Parser Image)
-parseImage _ (Parser _ (State _ _ _ True _) _) = Nothing
-parseImage _ (Parser _ (State _ _ _ _ True) _) = Nothing
-parseImage conf@(Conf{inputFormat=Just Markdown}) (elementsParser conf "![" "](" -> Just p) =
-    Just (Parser (Image (parse p) src) (state p) r)
-    where
-        (src, r) = splitOn ")" $ rest p
-parseImage _ _ = Nothing
+parseWhitespace :: Conf -> Parser String
+parseWhitespace (confWhitespace -> whtspc) =
+    Parser (\s@(State{rest=(span (`elem` whtspc) -> (x, r))}) -> Just (x, s{rest=r}))
+
+parseString :: String -> Parser String
+parseString x = Parser (\s@(State{rest=(stripPrefix x -> res)}) -> (\r -> (x, s{rest=r})) <$> res)
+
+parseUntil :: String -> Parser String
+parseUntil stop = Parser (\s@(State{rest=(splitOn stop -> (x, r))}) -> Just (x, s{rest=r}))
 
 parseElement :: Conf -> Parser () -> Maybe (Parser Element)
 parseElement conf (parseImage conf -> Just parser) = Just $ fmap ImageElement parser
 parseElement conf (parseLink conf -> Just parser) = Just $ fmap LinkElement parser
 parseElement _ _ = Nothing
 
-elementsParser :: Conf -> String -> String -> Parser () -> Maybe (Parser [Element])
-elementsParser conf start stop (Parser _ s (stripPrefix start -> Just content)) =
-    parseElements conf stop (Parser [] s content)
-elementsParser _ _ _ _ = Nothing
+parseBody :: Conf -> Parser Body
+parseBody _ = Parser $ const (Just (Body [], defaultState ""))
 
-parseElements :: Conf -> String -> Parser [Element] -> Maybe (Parser [Element])
-parseElements _ _ p@(Parser _ _ "") = Just p
-parseElements _ stop (Parser ls s (stripPrefix stop -> Just r)) = Just (Parser ls s r)
-parseElements conf stop (Parser ls s content) =
-    (\(Parser element s' r) -> parseElements conf stop (Parser (element:ls) s' r)) =<< parseElement conf (Parser () s content)
+parseJsonString :: Parser String
+parseJsonString = parseString "\"" *> parseUntil "\"" <* parseString "\""
 
-paragraphStart :: DocumentFormat -> String
-paragraphStart Markdown = ""
-paragraphStart XML = "<paragraph>"
-paragraphStart JSON = "["
+parseJsonField :: Conf -> String -> Parser String
+parseJsonField conf field = parseString "\"" *> parseString field *> parseString "\"" *> parseWhitespace conf *> parseString ":" <* parseWhitespace conf
 
-paragraphStop :: DocumentFormat -> String
-paragraphStop Markdown = "\n\n"
-paragraphStop XML = "</paragraph>"
-paragraphStop JSON = "]"
+parseJsonSeparator :: Conf -> Parser (Maybe String)
+parseJsonSeparator conf = parseWhitespace conf *> optional (parseString ",") <* parseWhitespace conf
 
-parseParagraph :: Conf -> Parser () -> Maybe (Parser Paragraph)
-parseParagraph conf@(Conf{inputFormat=Just format})
-    (elementsParser conf (paragraphStart format) (paragraphStop format) -> Just p) = Just $ fmap Paragraph p
-parseParagraph _ _ = Nothing
+parseStart :: Conf -> Parser String
+parseStart conf@(Conf{inputFormat=Just Markdown}) = parseString "---\n" <* parseWhitespace conf
+parseStart conf@(Conf{inputFormat=Just XML}) = parseString "<document>" *> parseWhitespace conf *> parseString "<header>" <* parseWhitespace conf
+parseStart conf@(Conf{inputFormat=Just JSON}) = parseString "{" *> parseWhitespace conf *> parseJsonField conf "header" <* parseString "{" <* parseWhitespace conf
+parseStart _ = Parser $ const Nothing
+
+parserHeaderField :: Conf -> String -> Parser String
+parserHeaderField conf@(Conf{inputFormat=Just Markdown}) field = parseString field *> parseString ": " *> parseUntil "\n" <* parseWhitespace conf
+parserHeaderField conf@(Conf{inputFormat=Just XML}) field = parseString (('<':field) ++ ">") *> parseUntil ("</" ++ field ++ ">") <* parseWhitespace conf
+parserHeaderField conf@(Conf{inputFormat=Just JSON}) field = parseJsonField conf field *> parseJsonString <* parseJsonSeparator conf
+parserHeaderField _ _ = Parser $ const Nothing
+
+parseHeaderEnd :: Conf -> Parser String
+parseHeaderEnd conf@(Conf{inputFormat=Just Markdown}) = parseString "---\n" <* parseWhitespace conf
+parseHeaderEnd conf@(Conf{inputFormat=Just XML}) = parseString "</header>" <* parseWhitespace conf
+parseHeaderEnd conf@(Conf{inputFormat=Just JSON}) = parseString "}" <* parseWhitespace conf
+parseHeaderEnd _ = Parser $ const Nothing
+
+parseTitle :: Conf -> Parser String
+parseTitle conf = parserHeaderField conf "title"
+
+parseAuthor :: Conf -> Parser String
+parseAuthor conf = parserHeaderField conf "author"
+
+parseDate :: Conf -> Parser String
+parseDate conf = parserHeaderField conf "date"
+
+parseHeader :: Conf -> Parser Header
+parseHeader conf = Header <$>
+    (parseStart conf *> parseTitle conf)
+        <*> optional (parseAuthor conf)
+        <*> optional (parseDate conf)
+        <* parseHeaderEnd conf
 
 decode :: Conf -> String -> Maybe Document
 decode Conf{inputFormat=Nothing} _ = Nothing
-decode _ _ = Just $ Document (Header "Document" Nothing Nothing) (Body [])
-    -- . Body . parse <$> parseContainers conf emptyParser
-    -- where
-    --     emptyParser = Parser () (State False False False) content
+decode conf content = fst <$> parse (Document <$> parseHeader conf <*> parseBody conf) (defaultState content)

@@ -22,4 +22,4 @@ main = do
     content <- readFile $ inputFile conf
     case decode (getFormat conf content) content of
         Nothing -> exitWith $ ExitFailure 84
-        Just document -> print document >> (putStrLn $ encode conf document)
+        Just document -> putStrLn $ encode conf document
