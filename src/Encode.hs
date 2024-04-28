@@ -58,7 +58,7 @@ addHeader JSON Header{title, author, date} iLvl =
         "\n" ++ indent (iLvl+1) ++ "\"title\": \"" ++ title &
         appendMaybe (fmap (("\",\n" ++ indent (iLvl+1) ++ "\"author\": \"") ++) author) &
         appendMaybe (fmap (("\",\n" ++ indent (iLvl+1) ++ "\"date\": \"") ++) date),
-        "\"\n" ++ indent iLvl ++ "},"
+        "\"\n" ++ indent iLvl ++ "}"
     ]
 addHeader XML Header{title, author, date} _ =
     "    <header title=\"" ++ title ++ "\">" ++
@@ -66,7 +66,7 @@ addHeader XML Header{title, author, date} _ =
 
 
 addElement :: DocumentFormat -> Element -> Int -> String
-addElement Markdown (TextElement elemE) _ = 
+addElement Markdown (TextElement elemE) _ =
     let
         b = if bold elemE then "**" else ""
         i = if italic elemE then "*" else ""
@@ -88,7 +88,7 @@ addElement JSON (LinkElement link) iLvl =
     ",\n" ++ indent iLvl ++ "{\n" ++ indent (iLvl+1) ++ "\"link\": {\n" ++ indent (iLvl+2) ++ "\"url\": \"" ++ (url link) ++ "\",\n" ++ indent (iLvl+2) ++ "\"content\": [\n" ++ indent (iLvl+3) ++ (foldMap (addElement JSON) (display link) 0) ++ "\n" ++ indent (iLvl+2) ++ "]\n" ++ indent (iLvl+1) ++ "}\n" ++ indent (iLvl) ++ "},\n"
 addElement JSON (ImageElement image) iLvl =
     ",\n" ++ indent iLvl ++ "{\n" ++ indent (iLvl+1) ++ "\"image\": {\n" ++ indent (iLvl+2) ++ "\"url\": \"" ++ (src image) ++ "\",\n" ++ indent (iLvl+2) ++ "\"alt\": [\n" ++ indent (iLvl+3) ++ (foldMap (addElement JSON) (alt image) 0) ++ "\n" ++ indent (iLvl+2) ++ "]\n" ++ indent (iLvl+1) ++ "}\n" ++ indent (iLvl) ++ "},\n"
-addElement XML (TextElement elemE) _ = 
+addElement XML (TextElement elemE) _ =
     let
         b = if bold elemE then "**" else ""
         i = if italic elemE then "*" else ""
@@ -181,7 +181,7 @@ addBody :: DocumentFormat -> Body -> String
 addBody _ Body{sections=[]} = ""
 addBody Markdown Body{sections} = foldMap (diffPC Markdown) sections 1
 addBody JSON Body{sections} =
-    "\n" ++
+    ",\n" ++
     indent 1 ++ "\"body\": [" ++
     init (foldMap (diffPC JSON) sections 1) ++ "\n" ++
     indent 1 ++ "]"
@@ -191,7 +191,7 @@ addBody XML Body{sections} =
     indent 1 ++ "</body>"
 
 encode :: Conf -> Document -> String
-encode Conf{outputFormat=Markdown} doc = 
+encode Conf{outputFormat=Markdown} doc =
     addHeader Markdown (header doc) 1 ++ addBody Markdown (body doc)
 encode Conf{outputFormat=JSON} doc =
     "{\n" ++ addHeader JSON (header doc) 1 ++ addBody JSON (body doc) ++ "\n}"
