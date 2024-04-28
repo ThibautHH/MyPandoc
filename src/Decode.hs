@@ -81,7 +81,7 @@ parseBody :: Conf -> Parser Body
 parseBody _ = Parser $ const (Just (Body [], defaultState ""))
 
 parseJsonString :: Parser String
-parseJsonString = parseString "\"" *> parseUntil "\"" <* parseString "\""
+parseJsonString = parseString "\"" *> parseUntil "\""
 
 parseJsonField :: Conf -> String -> Parser String
 parseJsonField conf field = parseString "\"" *> parseString field *> parseString "\"" *> parseWhitespace conf *> parseString ":" <* parseWhitespace conf
