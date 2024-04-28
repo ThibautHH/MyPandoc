@@ -104,7 +104,7 @@ parserHeaderField _ _ = Parser $ const Nothing
 parseHeaderEnd :: Conf -> Parser String
 parseHeaderEnd conf@(Conf{inputFormat=Just Markdown}) = parseString "---\n" <* parseWhitespace conf
 parseHeaderEnd conf@(Conf{inputFormat=Just XML}) = parseString "</header>" <* parseWhitespace conf
-parseHeaderEnd conf@(Conf{inputFormat=Just JSON}) = parseString "}" <* parseWhitespace conf
+parseHeaderEnd conf@(Conf{inputFormat=Just JSON}) = parseString "}" <* parseJsonSeparator conf
 parseHeaderEnd _ = Parser $ const Nothing
 
 parseTitle :: Conf -> Parser String
