@@ -81,7 +81,7 @@ parseBody :: Conf -> Parser Body
 parseBody _ = Parser $ const (Just (Body [], defaultState ""))
 
 parseJsonString :: Parser String
-parseJsonString = parseString "\"" *> parseUntil "\"" <* parseString "\""
+parseJsonString = parseString "\"" *> parseUntil "\""
 
 parseJsonField :: Conf -> String -> Parser String
 parseJsonField conf field = parseString "\"" *> parseString field *> parseString "\"" *> parseWhitespace conf *> parseString ":" <* parseWhitespace conf
@@ -91,7 +91,7 @@ parseJsonSeparator conf = parseWhitespace conf *> optional (parseString ",") <* 
 
 parseStart :: Conf -> Parser String
 parseStart conf@(Conf{inputFormat=Just Markdown}) = parseString "---\n" <* parseWhitespace conf
-parseStart conf@(Conf{inputFormat=Just XML}) = parseString "<document>" *> parseWhitespace conf *> parseString "<header>" <* parseWhitespace conf
+parseStart conf@(Conf{inputFormat=Just XML}) = parseString "<document>" *> parseWhitespace conf *> parseString "<header" <* parseWhitespace conf
 parseStart conf@(Conf{inputFormat=Just JSON}) = parseString "{" *> parseWhitespace conf *> parseJsonField conf "header" <* parseString "{" <* parseWhitespace conf
 parseStart _ = Parser $ const Nothing
 
@@ -104,10 +104,12 @@ parserHeaderField _ _ = Parser $ const Nothing
 parseHeaderEnd :: Conf -> Parser String
 parseHeaderEnd conf@(Conf{inputFormat=Just Markdown}) = parseString "---\n" <* parseWhitespace conf
 parseHeaderEnd conf@(Conf{inputFormat=Just XML}) = parseString "</header>" <* parseWhitespace conf
-parseHeaderEnd conf@(Conf{inputFormat=Just JSON}) = parseString "}" <* parseWhitespace conf
+parseHeaderEnd conf@(Conf{inputFormat=Just JSON}) = parseString "}" <* parseJsonSeparator conf
 parseHeaderEnd _ = Parser $ const Nothing
 
 parseTitle :: Conf -> Parser String
+parseTitle conf@(Conf{inputFormat=Just XML}) = parseString "title" *> parseWhitespace conf *> parseString "=" *>
+    parseWhitespace conf *> parseString "\"" *> parseUntil "\"" <* parseWhitespace conf <* parseString ">" <* parseWhitespace conf
 parseTitle conf = parserHeaderField conf "title"
 
 parseAuthor :: Conf -> Parser String
